@@ -1,0 +1,6 @@
+---
+dependencies:
+  - role: apache
+    when: server == 'apache' or server is undefined
+  - role: nginx
+    when: server == 'nginx'

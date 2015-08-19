@@ -1,0 +1,206 @@
+---
+- name: Add EPEL Repository
+  copy:
+    src: epel.repo
+    dest: /etc/yum.repos.d/epel.repo
+
+- name: Install libxml2
+  yum:
+    name: libxml2
+    state: latest
+
+- name: Install libxml2-devel
+  yum:
+    name: libxml2-devel
+    state: latest
+
+- name: Install curl
+  yum:
+    name: curl
+    state: latest
+
+- name: Install curl-devel
+  yum:
+    name: curl-devel
+    state: latest
+
+- name: Install libjpeg
+  yum:
+    name: libjpeg
+    state: latest
+
+- name: Install libjpeg-devel
+  yum:
+    name: libjpeg-devel
+    state: latest
+
+- name: Install freetype-devel
+  yum:
+    name: freetype-devel
+    state: latest
+
+- name: Install libpng-devel
+  yum:
+    name: libpng-devel
+    state: latest
+
+- name: Install libtool-ltdl-devel
+  yum:
+    name: libtool-ltdl-devel
+    state: latest
+
+- name: Install firebird
+  yum:
+    name: firebird
+    state: latest
+
+- name: Install firebird-devel
+  yum:
+    name: firebird-devel
+    state: latest
+
+- name: Install freetds-devel
+  yum:
+    name: freetds-devel
+    state: latest
+
+- name: Download libmcrypt
+  get_url:
+    url: "http://pkgs.repoforge.org/libmcrypt/libmcrypt-2.5.7-1.2.el6.rf.x86_64.rpm"
+    dest: /tmp/libmcrypt-2.5.7-1.2.el6.rf.x86_64.rpm
+
+- name: Install libmcrypt
+  command: rpm -Uvh --replacepkgs /tmp/libmcrypt-2.5.7-1.2.el6.rf.x86_64.rpm
+  args:
+    creates: /usr/lib64/libmcrypt.so
+
+- name: Download libmcrypt-devel
+  get_url:
+    url: "http://pkgs.repoforge.org/libmcrypt/libmcrypt-devel-2.5.7-1.2.el6.rf.x86_64.rpm"
+    dest: "/tmp/libmcrypt-devel-2.5.7-1.2.el6.rf.x86_64.rpm"
+
+- name: Install libmcrypt-devel
+  command: rpm -Uvh --replacepkgs /tmp/libmcrypt-devel-2.5.7-1.2.el6.rf.x86_64.rpm
+  args:
+    creates: /usr/share/doc/libmcrypt-devel-2.5.7
+
+- name: Download PHP
+  get_url:
+    url: "http://us1.php.net/get/php-{{ php_version }}.tar.gz/from/this/mirror"
+    dest: "/tmp/php-{{ php_version }}.tar.gz"
+
+- name: Unpack PHP
+  unarchive:
+    src: "/tmp/php-{{ php_version }}.tar.gz"
+    dest: /tmp
+    copy: no
+
+- name: Configure PHP
+  command: "{{ item }}"
+  args:
+    creates: "{{ apache_prefix }}/conf/php.ini"
+    chdir: "/tmp/php-{{ php_version }}"
+  with_items:
+    - ./configure
+      --with-interbase=/etc/firebird
+      --with-pdo-mysql
+      --with-pdo-firebird=/etc/firebird
+      --with-pdo_dblib
+      --enable-pcntl
+      --enable-sigchild
+      --with-openssl
+      --disable-debug
+      --with-mysql={{ mysql_include_path }}
+      --with-gd
+      --enable-gd-native-ttf
+      --with-jpeg-dir=/usr/lib64
+      --with-png-dir=/usr/lib64
+      --with-zlib-dir=/usr/lib64
+      --with-freetype-dir=/usr/lib64
+      --enable-sockets
+      --libdir=/usr/lib64
+      --with-libdir=lib64
+      --with-mcrypt
+      --with-curl
+      --with-soap
+      --enable-fpm
+# --with-config-file-path={{ apache_prefix }}/conf
+# --with-apxs2={{ apache_prefix }}/bin/apxs
+
+- name: Build PHP
+  command: make
+  args:
+    creates: "{{ apache_prefix }}/conf/php.ini"
+    chdir: "/tmp/php-{{ php_version }}"
+
+- name: Install PHP
+  command: make install
+  args:
+    creates: "{{ apache_prefix }}/conf/php.ini"
+    chdir: "/tmp/php-{{ php_version }}"
+
+- name: Prepare Soap Extension
+  command: /usr/local/bin/phpize
+  args:
+    chdir: "/tmp/php-{{ php_version }}/ext/soap"
+    creates: configure
+
+- name: Configure Soap Extension
+  command: ./configure --with-php-config=/usr/local/bin/php-config
+  args:
+    chdir: "/tmp/php-{{ php_version }}/ext/soap"
+    creates: config.h
+
+- name: Build Soap Extension
+  command: make
+  args:
+    chdir: "/tmp/php-{{ php_version }}/ext/soap"
+    creates: modules/soap.so
+
+- name: Install Soap Extension
+  command: make install
+  args:
+    chdir: "/tmp/php-{{ php_version }}/ext/soap"
+    creates: /usr/lib64/extensions/no-debug-non-zts-20090626/soap.so
+
+- name: Create DocumentRoot
+  file:
+    path: "{{ document_root }}"
+    state: directory
+    owner: www
+    group: deploy
+  when: host_name != "bot-vagrant"
+
+- name: Copy landing page
+  copy:
+    src: landingPage.php
+    dest: "{{ document_root }}/index.php"
+    owner: www
+    group: deploy
+  when: host_name != "bot-vagrant"
+
+- name: Install Composer
+  shell: "curl -sS https://getcomposer.org/installer | /usr/local/bin/php"
+  args:
+    creates: /root/composer.phar
+
+- name: Move composer
+  command: cp composer.phar /usr/local/bin/composer
+  args:
+    creates: /usr/local/bin/composer
+
+- name: Copy PHP config
+  copy:
+    src: php.ini
+    dest: "{{ apache_prefix }}/conf/php.ini"
+
+- name: Copy Apache main config
+  template:
+    src: apache_conf/httpd.conf.j2
+    dest: "{{ apache_prefix }}/conf/httpd.conf"
+
+- name: Copy Apache NonSSL config
+  template:
+    src: apache_conf/extra/httpd-nonssl.conf.j2
+    dest: "{{ apache_prefix }}/conf/extra/httpd-nonssl.conf"
+  notify: restart apache

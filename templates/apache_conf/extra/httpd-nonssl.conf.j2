@@ -1,0 +1,91 @@
+#
+# This is the Apache server configuration file providing SSL support.
+# It contains the configuration directives to instruct the server how to
+# serve pages over an https connection. For detailed information about these
+# directives see <URL:http://httpd.apache.org/docs/2.2/mod/mod_ssl.html>
+#
+# Do NOT simply read the instructions in here without understanding
+# what they do.  They're here only as hints or reminders.  If you are unsure
+# consult the online docs. You have been warned.
+#
+
+#
+# Pseudo Random Number Generator (PRNG):
+# Configure one or more sources to seed the PRNG of the SSL library.
+# The seed data should be of good random quality.
+# WARNING! On some platforms /dev/random blocks if not enough entropy
+# is available. This means you then cannot use the /dev/random device
+# because it would lead to very long connection times (as long as
+# it requires to make more entropy available). But usually those
+# platforms additionally provide a /dev/urandom device which doesn't
+# block. So, if available, use this one instead. Read the mod_ssl User
+# Manual for more details.
+#
+#SSLRandomSeed startup file:/dev/random  512
+#SSLRandomSeed startup file:/dev/urandom 512
+#SSLRandomSeed connect file:/dev/random  512
+#SSLRandomSeed connect file:/dev/urandom 512
+
+
+#
+# When we also provide SSL we have to listen to the
+# standard HTTP port (see above) and to the HTTPS port
+#
+# Note: Configurations that use IPv6 but not IPv4-mapped addresses need two
+#       Listen directives: "Listen [::]:443" and "Listen 0.0.0.0:443"
+#
+#Listen 80
+
+##
+##  SSL Global Context
+##
+##  All SSL configuration in this context applies both to
+##  the main server and all SSL-enabled virtual hosts.
+##
+
+#
+#   Some MIME-types for downloading Certificates and CRLs
+#
+
+#   Pass Phrase Dialog:
+#   Configure the pass phrase gathering process.
+#   The filtering dialog program (`builtin' is a internal
+#   terminal dialog) has to provide the pass phrase on stdout.
+
+#   Inter-Process Session Cache:
+#   Configure the SSL Session Cache: First the mechanism
+#   to use and second the expiring timeout (in seconds).
+#SSLSessionCache         "dbm:{{ apache_prefix }}/logs/ssl_scache"
+
+#   Semaphore:
+#   Configure the path to the mutual exclusion semaphore the
+#   SSL engine uses internally for inter-process synchronization.
+
+##
+## SSL Virtual Host Context
+##
+
+<VirtualHost _default_:80>
+    # General setup for the virtual host
+    DocumentRoot "{{ document_root }}"
+    ServerName {{ server_name }}:80
+    ServerAdmin support@rightwaytechnology.com
+    CustomLog "|{{ apache_prefix }}/bin/rotatelogs {{ apache_log_path }}/access_log 86400" combined
+    ErrorLog  "|{{ apache_prefix }}/bin/rotatelogs {{ apache_log_path }}/error_log 86400"
+
+    SetEnv WHATVIRTUAL PROD
+
+    php_value include_path ".:{{ include_path }}"
+    php_value upload_tmp_dir "/tmp"
+
+    <Directory "{{ document_root }}">
+      Options Indexes FollowSymLinks
+      AllowOverride All
+      Order allow,deny
+      Allow from all
+    </Directory>
+
+    <Directory "{{ document_root }}/secure">
+      php_value auto_prepend_file {{ auto_prepend_file }}
+    </Directory>
+</VirtualHost>

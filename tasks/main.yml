@@ -1,0 +1,7 @@
+- name: Install PHP
+  include: php53.yml
+  when: server == "apache" or server is undefined
+
+- name: Install PHP
+  include: php56.yml
+  when: server == "nginx"

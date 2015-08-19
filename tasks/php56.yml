@@ -1,0 +1,205 @@
+---
+- name: Add EPEL Repository
+  copy:
+    src: epel.repo
+    dest: /etc/yum.repos.d/epel.repo
+
+- name: Install Dependencies
+  yum:
+    name: "{{ item }}"
+    state: latest
+  with_items:
+    - libxml2
+    - libxml2-devel
+    - curl
+    - curl-devel
+    - libjpeg
+    - libjpeg-devel
+    - freetype-devel
+    - libpng-devel
+    - libtool-ltdl-devel
+    - firebird
+    - firebird-devel
+    - freetds-devel
+
+- name: Download libmcrypt
+  get_url:
+    url: "http://pkgs.repoforge.org/libmcrypt/libmcrypt-2.5.7-1.2.el6.rf.x86_64.rpm"
+    dest: /tmp/libmcrypt-2.5.7-1.2.el6.rf.x86_64.rpm
+
+- name: Install libmcrypt
+  command: rpm -Uvh --replacepkgs /tmp/libmcrypt-2.5.7-1.2.el6.rf.x86_64.rpm
+  args:
+    creates: "{{ mysql_lib_path }}/libmcrypt.so"
+
+- name: Download libmcrypt-devel
+  get_url:
+    url: "http://pkgs.repoforge.org/libmcrypt/libmcrypt-devel-2.5.7-1.2.el6.rf.x86_64.rpm"
+    dest: "/tmp/libmcrypt-devel-2.5.7-1.2.el6.rf.x86_64.rpm"
+
+- name: Install libmcrypt-devel
+  command: rpm -Uvh --replacepkgs /tmp/libmcrypt-devel-2.5.7-1.2.el6.rf.x86_64.rpm
+  args:
+    creates: /usr/share/doc/libmcrypt-devel-2.5.7
+
+- name: Download PHP
+  get_url:
+    url: "http://us1.php.net/get/php-{{ php_version }}.tar.gz/from/this/mirror"
+    dest: "/tmp/php-{{ php_version }}.tar.gz"
+
+- name: Unpack PHP
+  unarchive:
+    src: "/tmp/php-{{ php_version }}.tar.gz"
+    dest: /tmp
+    copy: no
+
+- name: Create www-data user
+  user:
+    name: www-data
+    state: present
+
+# @todo - use to configure
+- name: Copy Configure script
+  template:
+    src: php-fpm-configure.sh.j2
+    dest: /tmp/php-{{ php_version }}/php-fpm-configure.sh
+    mode: 0744
+    owner: root
+    group: root
+
+- name: Configure PHP
+  command: ./php-fpm-configure.sh
+  args:
+    chdir: "/tmp/php-{{ php_version }}"
+    creates: Makefile
+
+- name: Build PHP
+  command: make
+  args:
+    chdir: "/tmp/php-{{ php_version }}"
+    creates: "/usr/local/bin/php"
+
+- name: Install PHP
+  command: make install
+  args:
+    chdir: "/tmp/php-{{ php_version }}"
+    creates: "/usr/local/bin/php"
+
+- name: Create config directory
+  file:
+    path: /etc/php
+    state: directory
+
+- name: Copy production config
+  command: cp /tmp/php-{{ php_version }}/php.ini-production /etc/php/php.ini
+  args:
+    creates: /etc/php/php.ini
+
+- name: Copy base PHP-FPM configuration
+  command: cp /usr/local/etc/php-fpm.conf.default /usr/local/etc/php-fpm.conf
+  args:
+    creates: /usr/local/etc/php-fpm.conf
+
+# - name: Configure PHP-FPM PID file
+#   lineinfile:
+#     dest: /usr/local/etc/php-fpm.conf
+#     line: "^pid = run/php-fpm.pid"
+#     state: present
+
+# - name: Configure PHP_FPM user
+#   lineinfile:
+#     dest: /usr/local/etc/php-fpm.conf
+#     line: "^user = www-data"
+#     state: present
+
+# - name: Configure PHP_FPM group
+#   lineinfile:
+#     dest: /usr/local/etc/php-fpm.conf
+#     line: "^group = www-data"
+#     state: present
+
+# - name: Create pool.d directoy
+#   file:
+#     path: /usr/local/php/php/pool.d
+#     state: directory
+
+# - name: Configure PHP_FPM include files
+#   lineinfile:
+#     dest: /usr/local/etc/php-fpm.conf
+#     line: "^include=/usr/local/php/php/pool.d/*.conf"
+#     state: present
+
+- name: Define PHP-FPM service
+  shell: cp /tmp/php-{{ php_version }}/sapi/fpm/init.d.php-fpm /etc/init.d/php-fpm && sudo chmod +x /etc/init.d/php-fpm
+  args:
+    creates: /etc/init.d/php-fpm
+  notify: start php-fpm
+
+# - name: Prepare Soap Extension
+#   command: /usr/local/bin/phpize
+#   args:
+#     chdir: "/tmp/php-{{ php_version }}/ext/soap"
+#     creates: configure
+
+# - name: Configure Soap Extension
+#   command: ./configure --with-php-config=/usr/local/bin/php-config
+#   args:
+#     chdir: "/tmp/php-{{ php_version }}/ext/soap"
+#     creates: config.h
+
+# - name: Build Soap Extension
+#   command: make
+#   args:
+#     chdir: "/tmp/php-{{ php_version }}/ext/soap"
+#     creates: modules/soap.so
+
+# - name: Install Soap Extension
+#   command: make install
+#   args:
+#     chdir: "/tmp/php-{{ php_version }}/ext/soap"
+#     creates: "{{ mysql_lib_path }}extensions/no-debug-non-zts-20090626/soap.so"
+
+- name: Create DocumentRoot
+  file:
+    path: "{{ document_root }}"
+    state: directory
+    owner: www
+    group: deploy
+  when: host_name != "bot-vagrant"
+
+- name: Copy landing page
+  copy:
+    src: landingPage.php
+    dest: "{{ document_root }}/index.php"
+    owner: www
+    group: deploy
+  when: host_name != "bot-vagrant"
+
+- name: Install Composer
+  shell: "curl -sS https://getcomposer.org/installer | /usr/local/bin/php"
+  args:
+    creates: /root/composer.phar
+
+- name: Move composer
+  command: cp composer.phar /usr/local/bin/composer
+  args:
+    creates: /usr/local/bin/composer
+
+# - name: Copy PHP config
+#   copy:
+#     src: php.ini
+#     dest: "{{ apache_prefix }}/conf/php.ini"
+#   when: server == "apache" or server is undefined
+
+# - name: Copy Apache main config
+#   template:
+#     src: apache_conf/httpd.conf.j2
+#     dest: "{{ apache_prefix }}/conf/httpd.conf"
+#   when: server == "apache" or server is undefined
+
+# - name: Copy Apache NonSSL config
+#   template:
+#     src: apache_conf/extra/httpd-nonssl.conf.j2
+#     dest: "{{ apache_prefix }}/conf/extra/httpd-nonssl.conf"
+#   notify: restart apache
+#   when: server == "apache" or server is undefined

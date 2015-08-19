@@ -1,0 +1,29 @@
+#!/bin/sh
+
+./configure \
+    --disable-debug \
+    --enable-fpm \
+    --enable-gd-native-ttf \
+    --enable-pcntl \
+    --enable-pdo \
+    --enable-sigchild \
+    --enable-soap \
+    --enable-sockets \
+    --with-config-file-path=/etc/php/ \
+    --with-config-file-scan-dir=/etc/php/conf.d/ \
+    --with-curl \
+    --with-freetype-dir={{ mysql_lib_path }} \
+    --with-fpm-user=www-data \
+    --with-fpm-group=www-data \
+    --with-gd \
+    --with-interbase=/etc/firebird \
+    --with-jpeg-dir={{ mysql_lib_path }} \
+    --with-libdir={{ mysql_lib_dir }} \
+    --with-mcrypt \
+    --with-mysql={{ mysql_include_path }} \
+    --with-openssl \
+    --with-pdo_dblib \
+    --with-pdo-firebird=/etc/firebird \
+    --with-pdo-mysql \
+    --with-png-dir={{ mysql_lib_path }} \
+    --with-zlib-dir={{ mysql_lib_path }}

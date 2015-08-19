@@ -1,0 +1,4 @@
+[EPEL64]
+name=Extra Packages for Enterprise Linux x86_64
+baseurl=http://dl.fedoraproject.org/pub/epel/6/x86_64/
+gpgkey=http://dl.fedoraproject.org/pub/epel/RPM-GPG-KEY-EPEL-6
